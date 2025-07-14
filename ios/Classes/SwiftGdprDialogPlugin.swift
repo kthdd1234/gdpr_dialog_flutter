@@ -45,7 +45,7 @@ public class SwiftGdprDialogPlugin: NSObject, FlutterPlugin {
   private func getConsentStatus(result: @escaping FlutterResult) {
     var statusResult = "ERROR"
     do {
-      let status = UMPConsentInformation.sharedInstance.consentStatus
+      let status = ConsentInformation.shared.consentStatus
       if status == .notRequired {
         print(".notRequired");
         statusResult = "NOT_REQUIRED"
@@ -66,19 +66,19 @@ public class SwiftGdprDialogPlugin: NSObject, FlutterPlugin {
   }
 
   private func checkConsent(result: @escaping FlutterResult, isForTest: Bool, testDeviceId: String) {
-    let parameters = UMPRequestParameters()
+    let parameters = RequestParameters()
     // Set tag for under age of consent. Here false means users are not under age.
-    parameters.tagForUnderAgeOfConsent = false
+    parameters.isTaggedForUnderAgeOfConsent = false
 
     if isForTest {
-      let debugSettings = UMPDebugSettings()
+      let debugSettings = DebugSettings()
       debugSettings.testDeviceIdentifiers = [ testDeviceId ]
-      debugSettings.geography = UMPDebugGeography.EEA
+      debugSettings.geography = DebugGeography.EEA
       parameters.debugSettings = debugSettings
     }
 
     // Request an update to the consent information.
-    UMPConsentInformation.sharedInstance.requestConsentInfoUpdate(
+    ConsentInformation.shared.requestConsentInfoUpdate(
         with: parameters,
         completionHandler: { [self] error in
 
@@ -89,10 +89,10 @@ public class SwiftGdprDialogPlugin: NSObject, FlutterPlugin {
           } else {
             // The consent information state was updated.
             // You are now ready to see if a form is available.
-            let formStatus = UMPConsentInformation.sharedInstance.formStatus
-            if formStatus == UMPFormStatus.available {
+            let formStatus = ConsentInformation.shared.formStatus
+            if formStatus == FormStatus.available {
               loadForm(result: result)
-            } else if formStatus == UMPFormStatus.unavailable {
+            } else if formStatus == FormStatus.unavailable {
               // Consent forms are unavailable. Showing a consent form is not required.
               result(true)
             }
@@ -101,32 +101,29 @@ public class SwiftGdprDialogPlugin: NSObject, FlutterPlugin {
   }
 
   private func loadForm(result: @escaping FlutterResult) {
-    UMPConsentForm.load(
-      completionHandler: { form, loadError in
-        if loadError != nil {
-          print("Error on loadForm: \(loadError)")
-          result(false)
+    // Load the consent form and show it if it's required
+    ConsentForm.load { form, loadError in
+      if loadError != nil {
+        print("Error loading the consent form: \(loadError!.localizedDescription)")
+        result(false)
+      } else {
+        // Check if the consent form is required and show it
+        if ConsentInformation.shared.consentStatus == ConsentStatus.required {
+          form?.present(
+            from: (UIApplication.shared.delegate?.window??.rootViewController)!,
+            completionHandler: { dismissError in
+              if dismissError != nil {
+                print("Error on presenting the consent form: \(dismissError!.localizedDescription)")
+                result(false)
+              }
+              // After presenting the form, you can check the consent status
+              result(true)
+            })
         } else {
-          // Present the form. You can also hold on to the reference to present
-          // later.
-          if UMPConsentInformation.sharedInstance.consentStatus == UMPConsentStatus.required {
-            form?.present(
-              from: (UIApplication.shared.delegate?.window?!.rootViewController)!,
-                completionHandler: { dismissError in
-                  if dismissError != nil {
-                    print("Error on loadForm completionHandler: \(dismissError)")
-                    result(false)
-                  }
-                  // else {
-                  //   if UMPConsentInformation.sharedInstance.consentStatus == UMPConsentStatus.obtained {
-                  //     --- App can start requesting ads. ---
-                  //   }
-                  // }
-                })
-          }
           result(true)
         }
-      })
+      }
+    }
   }
 
   // In testing your app with the UMP SDK, you may find it helpful
@@ -134,11 +131,11 @@ public class SwiftGdprDialogPlugin: NSObject, FlutterPlugin {
   // a user's first install experience.
   private func resetDecision(result: @escaping FlutterResult) {
     do {
-      UMPConsentInformation.sharedInstance.reset()
+      ConsentInformation.shared.reset()
       result(true)
     } catch let error {
       print("Error on resetDecision: \(error)")
       result(false)
     }
   }
-}
+} 
