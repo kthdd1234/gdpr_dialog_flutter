@@ -24,7 +24,7 @@ apply plugin: 'com.android.library'
 android {
     compileSdkVersion 30
 
-    napespace "com.gdpr.gdpr_dialog"
+    namespace "com.gdpr.gdpr_dialog"
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_1_8
